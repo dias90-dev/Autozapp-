@@ -1,0 +1,6 @@
+{
+  "name": "Autozapp",
+  "description": "A futuristic, minimalist auto-responder for WhatsApp with high performance and accessibility focus.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

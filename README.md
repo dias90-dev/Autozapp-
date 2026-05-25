@@ -1,11 +1,27 @@
-<div align="center">
+# Autozapp - Futuristic AI Auto-Responder
 
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+Autozapp is a high-performance, minimalist auto-reply application for WhatsApp designed with a futuristic "Cyber" aesthetic. It leverages Android's Neural Engine concepts to provide fluid, anti-blocking automation.
 
-  <h1>Built with AI Studio</h2>
+## 🚀 Features
+- **Neural Auto-Reply**: Intelligent triggering based on Exact, Contains, or Regex matching.
+- **Pro Engine**: Native support for professional limits, unlimited rules, and priority routing.
+- **Cyber UI**: Immersive dark theme with cyan neon accents and Material 3 motion.
+- **Shield Protected**: Built-in "Humanized" delay patterns to minimize automation detection.
+- **Offline First**: Uses Room Database for maximum privacy and zero-latency responses.
 
-  <p>The fastest path from prompt to production with Gemini.</p>
+## 🛠 Tech Stack
+- **Language**: 100% Kotlin
+- **UI Framework**: Jetpack Compose (Material 3)
+- **Database**: Room Persistence Library
+- **Concurrency**: Kotlin Coroutines & Flow
+- **Architecture**: MVVM (Model-View-ViewModel)
+- **Service**: NotificationListenerService for non-intrusive automation.
 
-  <a href="https://aistudio.google.com/apps">Start building</a>
+## 📦 How to Build
+1. Clone the repository.
+2. Open in Android Studio (Ladybug or newer).
+3. Ensure you have the latest Android SDK (API 35/36).
+4. Build the project using the Gradle wrapper.
 
-</div>
+## 🛡 Permissions
+This app requires **Notification Access** to detect incoming WhatsApp messages and **Remote Input** capabilities to send automated replies. We respect your privacy: no chat data ever leaves your device.

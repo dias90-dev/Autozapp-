@@ -1,0 +1,587 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
+package com.example.ui
+
+import android.content.Context
+import android.content.Intent
+import android.provider.Settings
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.data.MatchType
+import com.example.data.ReplyRule
+import com.example.ui.theme.CyberCyan
+import com.example.ui.theme.EmeraldStatus
+
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.SpanStyle
+
+@Composable
+fun HomeScreen(viewModel: AutoReplyViewModel) {
+    val rules by viewModel.rules.collectAsStateWithLifecycle()
+    val isPro by viewModel.isPro.collectAsStateWithLifecycle()
+    val remainingReplies by viewModel.remainingReplies.collectAsStateWithLifecycle()
+    
+    var showAddDialog by remember { mutableStateOf(false) }
+    var showUpgradeDialog by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+
+    LaunchedEffect(Unit) {
+        while(true) {
+            viewModel.updateUsage()
+            kotlinx.coroutines.delay(5000)
+        }
+    }
+
+    Scaffold(
+        topBar = { ImmersiveHeader(context, isPro, onUpgradeClick = { showUpgradeDialog = true }) },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = { 
+                    if (!isPro && rules.size >= 2) {
+                        showUpgradeDialog = true
+                    } else {
+                        showAddDialog = true 
+                    }
+                },
+                containerColor = CyberCyan,
+                contentColor = Color.Black,
+                shape = CircleShape,
+                modifier = Modifier
+                    .padding(16.dp)
+                    .size(64.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "Add Rule",
+                    modifier = Modifier.size(32.dp)
+                )
+            }
+        },
+        containerColor = MaterialTheme.colorScheme.background
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            item { StatusSection() }
+            item { AnalyticsGrid(rules.size, isPro, remainingReplies) }
+            
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "ACTIVE RULES",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    TextButton(onClick = { openNotificationSettings(context) }) {
+                        Text("Permission Settings", color = CyberCyan, fontSize = 12.sp)
+                    }
+                }
+            }
+
+            if (rules.isEmpty()) {
+                item { EmptyState() }
+            } else {
+                items(rules, key = { it.id }) { rule ->
+                    RuleRow(
+                        rule = rule,
+                        onToggle = { viewModel.toggleRule(rule) },
+                        onDelete = { viewModel.deleteRule(rule) }
+                    )
+                }
+            }
+            
+            item { Spacer(modifier = Modifier.height(80.dp)) }
+        }
+
+        if (showAddDialog) {
+            AddRuleDialog(
+                onDismiss = { showAddDialog = false },
+                onConfirm = { pattern, reply, matchType ->
+                    val success = viewModel.addRule(pattern, reply, matchType)
+                    if (success) {
+                        showAddDialog = false
+                    } else {
+                        showUpgradeDialog = true
+                    }
+                }
+            )
+        }
+
+        if (showUpgradeDialog) {
+            UpgradeDialog(
+                onDismiss = { showUpgradeDialog = false },
+                onUpgrade = { 
+                    viewModel.upgrade()
+                    showUpgradeDialog = false
+                }
+            )
+        }
+    }
+}
+
+@Composable
+fun ImmersiveHeader(context: Context, isPro: Boolean, onUpgradeClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp)
+            .statusBarsPadding()
+            .padding(top = 16.dp, bottom = 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column {
+            Text(
+                if (isPro) "PRO ENGINE ACTIVE" else "NEURAL ENGINE ACTIVE",
+                style = MaterialTheme.typography.labelSmall,
+                color = if (isPro) Color(0xFFFFD700) else CyberCyan
+            )
+            Text(
+                text = buildAnnotatedString {
+                    append("Autozapp")
+                    withStyle(SpanStyle(color = if (isPro) Color(0xFFFFD700) else CyberCyan)) {
+                        append(".")
+                    }
+                },
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                fontSize = 28.sp
+            )
+        }
+
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (!isPro) {
+                IconButton(
+                    onClick = onUpgradeClick,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(0xFFFFD700).copy(alpha = 0.1f))
+                        .border(1.dp, Color(0xFFFFD700).copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                ) {
+                    Icon(Icons.Default.Bolt, contentDescription = "Upgrade", tint = Color(0xFFFFD700))
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                val infiniteTransition = rememberInfiniteTransition()
+                val pulse by infiniteTransition.animateFloat(
+                    initialValue = 0.6f,
+                    targetValue = 1.2f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(1200, easing = FastOutSlowInEasing),
+                        repeatMode = RepeatMode.Reverse
+                    )
+                )
+                
+                Box(
+                    modifier = Modifier
+                        .size(10.dp)
+                        .scale(pulse)
+                        .clip(CircleShape)
+                        .background(if (isPro) Color(0xFFFFD700) else CyberCyan)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun StatusSection() {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(140.dp)
+            .clip(RoundedCornerShape(32.dp))
+            .background(
+                Brush.linearGradient(
+                    colors = listOf(
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
+                    )
+                )
+            )
+            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(32.dp))
+            .padding(24.dp)
+    ) {
+        // Blur glow
+        Box(
+            modifier = Modifier
+                .offset(x = 180.dp, y = (-60).dp)
+                .size(120.dp)
+                .blur(40.dp)
+                .clip(CircleShape)
+                .background(CyberCyan.copy(alpha = 0.15f))
+        )
+
+        Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.Center) {
+            Text(
+                "Anti-Block Status",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                "Shield Protected",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Medium
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                StatusTag("FLUID MOTION", EmeraldStatus)
+                StatusTag("AI-HUMANIZED", CyberCyan)
+            }
+        }
+    }
+}
+
+@Composable
+fun StatusTag(text: String, color: Color) {
+    Surface(
+        color = color.copy(alpha = 0.1f),
+        shape = RoundedCornerShape(8.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, color.copy(alpha = 0.3f))
+    ) {
+        Text(
+            text = text,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            style = MaterialTheme.typography.labelSmall,
+            color = color,
+            fontSize = 9.sp,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+@Composable
+fun AnalyticsGrid(rulesCount: Int, isPro: Boolean, remaining: Int) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        AnalyticsCard(
+            "Limit", 
+            if (isPro) "∞" else "$remaining", 
+            if (isPro) "Unlimited" else "Daily Remaining", 
+            if (isPro) Color(0xFFFFD700) else CyberCyan, 
+            Modifier.weight(1f)
+        )
+        AnalyticsCard(
+            "Rules", 
+            "$rulesCount", 
+            if (isPro) "Unlimited" else "Max 2", 
+            EmeraldStatus, 
+            Modifier.weight(1f)
+        )
+    }
+}
+
+@Composable
+fun AnalyticsCard(label: String, value: String, subValue: String, color: Color, modifier: Modifier) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(24.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(24.dp))
+            .padding(16.dp)
+    ) {
+        Text(
+            label.uppercase(),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 10.sp
+        )
+        Text(
+            value,
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Light
+        )
+        Text(
+            subValue,
+            style = MaterialTheme.typography.labelSmall,
+            color = color,
+            fontSize = 10.sp
+        )
+    }
+}
+
+@Composable
+fun RuleRow(
+    rule: ReplyRule,
+    onToggle: () -> Unit,
+    onDelete: () -> Unit
+) {
+    val currentAlpha = if (rule.isEnabled) 1f else 0.5f
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .alpha(currentAlpha)
+            .clip(RoundedCornerShape(24.dp))
+            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
+            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(24.dp))
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+            contentAlignment = Alignment.Center
+        ) {
+            val iconText = if (rule.pattern.length > 1) rule.pattern.take(1).lowercase() else rule.pattern
+            Text(
+                iconText,
+                style = MaterialTheme.typography.titleLarge,
+                color = if (rule.isEnabled) CyberCyan else MaterialTheme.colorScheme.onSurfaceVariant,
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Serif,
+                fontWeight = FontWeight.Bold
+            )
+        }
+        
+        Spacer(modifier = Modifier.width(16.dp))
+        
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                rule.pattern,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium
+            )
+            Text(
+                "Trigger: \"${rule.pattern}\"",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                letterSpacing = 0.sp
+            )
+        }
+
+        Switch(
+            checked = rule.isEnabled,
+            onCheckedChange = { onToggle() },
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = CyberCyan,
+                checkedTrackColor = CyberCyan.copy(alpha = 0.2f),
+                uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
+            )
+        )
+    }
+}
+
+@Composable
+fun EmptyState() {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 48.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(
+            Icons.Default.AutoAwesome,
+            contentDescription = null,
+            modifier = Modifier.size(64.dp),
+            tint = CyberCyan.copy(alpha = 0.2f)
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            "No active rules",
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+fun AddRuleDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (String, String, MatchType) -> Unit
+) {
+    var pattern by remember { mutableStateOf("") }
+    var reply by remember { mutableStateOf("") }
+    var matchType by remember { mutableStateOf(MatchType.EXACT) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                "INITIALIZE PROTOCOL",
+                style = MaterialTheme.typography.labelSmall,
+                color = CyberCyan
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                OutlinedTextField(
+                    value = pattern,
+                    onValueChange = { pattern = it },
+                    label = { Text("Trigger Pattern") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = CyberCyan,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                    )
+                )
+                OutlinedTextField(
+                    value = reply,
+                    onValueChange = { reply = it },
+                    label = { Text("Response Payload") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = CyberCyan,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                    )
+                )
+                
+                Text("Match Type", style = MaterialTheme.typography.labelSmall)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    MatchType.values().forEach { type ->
+                        FilterChip(
+                            selected = matchType == type,
+                            onClick = { matchType = type },
+                            label = { Text(type.name) },
+                            shape = RoundedCornerShape(8.dp),
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = CyberCyan.copy(alpha = 0.1f),
+                                selectedLabelColor = CyberCyan
+                            )
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { if (pattern.isNotEmpty() && reply.isNotEmpty()) onConfirm(pattern, reply, matchType) },
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = CyberCyan, contentColor = Color.Black)
+            ) {
+                Text("CONFIRM")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("ABORT", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        },
+        containerColor = Color(0xFF111418),
+        shape = RoundedCornerShape(32.dp)
+    )
+}
+
+@Composable
+fun UpgradeDialog(
+    onDismiss: () -> Unit,
+    onUpgrade: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                Icon(
+                    Icons.Default.WorkspacePremium,
+                    contentDescription = null,
+                    modifier = Modifier.size(64.dp),
+                    tint = Color(0xFFFFD700)
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    "UNLOCK PRO ENGINE",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color(0xFFFFD700)
+                )
+            }
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                ProFeatureRow("Unlimited Rules", "Create as many automations as you need.")
+                ProFeatureRow("Priority Routing", "Faster response times with direct injection.")
+                ProFeatureRow("Zero Limits", "Say goodbye to daily response caps.")
+                ProFeatureRow("Neural Core", "Unlock advanced Regex and pattern matching.")
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onUpgrade,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFFFFD700),
+                    contentColor = Color.Black
+                )
+            ) {
+                Text("UPGRADE NOW", fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("NOT NOW", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        },
+        containerColor = Color(0xFF0F1115),
+        shape = RoundedCornerShape(32.dp)
+    )
+}
+
+@Composable
+fun ProFeatureRow(title: String, description: String) {
+    Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Icon(
+            Icons.Default.CheckCircle,
+            contentDescription = null,
+            modifier = Modifier.size(20.dp),
+            tint = Color(0xFFFFD700)
+        )
+        Column {
+            Text(title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+            Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+fun openNotificationSettings(context: Context) {
+    val intent = Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+    context.startActivity(intent)
+}
