@@ -49,6 +49,22 @@ fun HomeScreen(viewModel: AutoReplyViewModel) {
     var showUpgradeDialog by remember { mutableStateOf(false) }
     val context = LocalContext.current
 
+    var isAccessEnabled by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        while(true) {
+            try {
+                val enabled = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    com.example.isNotificationServiceEnabled(context)
+                }
+                isAccessEnabled = enabled
+            } catch (e: Exception) {
+                android.util.Log.e("HomeScreen", "Error checking access in loop", e)
+            }
+            kotlinx.coroutines.delay(2000)
+        }
+    }
+
     LaunchedEffect(Unit) {
         while(true) {
             viewModel.updateUsage()
@@ -90,6 +106,14 @@ fun HomeScreen(viewModel: AutoReplyViewModel) {
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            if (!isAccessEnabled) {
+                item {
+                    com.example.PermissionBanner(onGrantClick = {
+                        openNotificationSettings(context)
+                    })
+                }
+            }
+            
             item { StatusSection() }
             item { AnalyticsGrid(rules.size, isPro, remainingReplies) }
             
@@ -121,6 +145,9 @@ fun HomeScreen(viewModel: AutoReplyViewModel) {
                     )
                 }
             }
+
+            item { Spacer(modifier = Modifier.height(8.dp)) }
+            item { SafetyGuidelinesCard() }
             
             item { Spacer(modifier = Modifier.height(80.dp)) }
         }
@@ -349,7 +376,7 @@ fun RuleRow(
     onDelete: () -> Unit
 ) {
     val currentAlpha = if (rule.isEnabled) 1f else 0.5f
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .alpha(currentAlpha)
@@ -357,51 +384,111 @@ fun RuleRow(
             .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
             .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(24.dp))
             .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .size(48.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant),
-            contentAlignment = Alignment.Center
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            val iconText = if (rule.pattern.length > 1) rule.pattern.take(1).lowercase() else rule.pattern
-            Text(
-                iconText,
-                style = MaterialTheme.typography.titleLarge,
-                color = if (rule.isEnabled) CyberCyan else MaterialTheme.colorScheme.onSurfaceVariant,
-                fontFamily = androidx.compose.ui.text.font.FontFamily.Serif,
-                fontWeight = FontWeight.Bold
-            )
-        }
-        
-        Spacer(modifier = Modifier.width(16.dp))
-        
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                rule.pattern,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Medium
-            )
-            Text(
-                "Trigger: \"${rule.pattern}\"",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                letterSpacing = 0.sp
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                contentAlignment = Alignment.Center
+            ) {
+                val iconText = when (rule.matchType) {
+                    MatchType.EXACT -> "EX"
+                    MatchType.CONTAINS -> "CO"
+                    MatchType.REGEX -> "RE"
+                }
+                Text(
+                    iconText,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (rule.isEnabled) CyberCyan else MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            
+            Spacer(modifier = Modifier.width(12.dp))
+            
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = rule.pattern,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = "Trigger Type:",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 11.sp
+                    )
+                    Text(
+                        text = rule.matchType.name,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = CyberCyan,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            Switch(
+                checked = rule.isEnabled,
+                onCheckedChange = { onToggle() },
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = CyberCyan,
+                    checkedTrackColor = CyberCyan.copy(alpha = 0.2f),
+                    uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
+                )
             )
         }
 
-        Switch(
-            checked = rule.isEnabled,
-            onCheckedChange = { onToggle() },
-            colors = SwitchDefaults.colors(
-                checkedThumbColor = CyberCyan,
-                checkedTrackColor = CyberCyan.copy(alpha = 0.2f),
-                uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
-            )
-        )
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), thickness = 0.5.dp)
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                Text(
+                    text = "RESPONSE PAYLOAD",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = rule.reply,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
+                    maxLines = 2
+                )
+            }
+
+            IconButton(
+                onClick = onDelete,
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color(0xFFFF5252).copy(alpha = 0.1f)),
+                colors = IconButtonDefaults.iconButtonColors(contentColor = Color(0xFFFF5252))
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = "Delete Rule",
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        }
     }
 }
 
@@ -584,4 +671,143 @@ fun ProFeatureRow(title: String, description: String) {
 fun openNotificationSettings(context: Context) {
     val intent = Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
     context.startActivity(intent)
+}
+
+@Composable
+fun SafetyGuidelinesCard() {
+    var expanded by remember { mutableStateOf(false) }
+    
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(24.dp))
+            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.03f))
+            .border(
+                1.dp, 
+                if (expanded) CyberCyan.copy(alpha = 0.4f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), 
+                RoundedCornerShape(24.dp)
+            )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 40.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Shield,
+                        contentDescription = "Shield Protection",
+                        tint = CyberCyan,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Column {
+                        Text(
+                            "SEGURANÇA & ANTI-BLOQUEIO",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = CyberCyan,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            "Como funciona e como evitar banimentos",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                
+                IconButton(
+                    onClick = { expanded = !expanded },
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                        contentDescription = if (expanded) "Colapsar" else "Expandir",
+                        tint = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+            
+            if (expanded) {
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), thickness = 0.5.dp)
+                
+                Text(
+                    text = "A automação de respostas é uma ferramenta crucial para empresas e profissionais garantirem atendimento instantâneo 24h, aumentando a conversão de leads e satisfação em até 85%. Para manter o funcionamento seguro e fluido sem bloqueios da Meta, siga as diretrizes integradas abaixo:",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+                    lineHeight = 18.sp
+                )
+                
+                Spacer(modifier = Modifier.height(4.dp))
+                
+                SafetyInstructionRow(
+                    index = "01",
+                    title = "Funcionamento Não-Intrusivo",
+                    description = "O Autozapp lê a notificação nativa do aparelho e interage pelo canal de resposta do Android. Não altera o código do WhatsApp, não precisa de root, e por isso é 100% invisível aos rastreadores de bot corporativos."
+                )
+                
+                SafetyInstructionRow(
+                    index = "02",
+                    title = "Pacing Neural Cadenciado",
+                    description = "Nossa tecnologia simula o atraso de digitação natural. Respostas instantâneas milissegundas repetitivas ativam alarmes de spam das operadoras. Mantenha os fluxos fluidos usando mensagens simplificadas e objetivas."
+                )
+                
+                SafetyInstructionRow(
+                    index = "03",
+                    title = "Personalização de Triggers",
+                    description = "Evite regras genéricas que respondam a qualquer saudação simples. Use gatilhos baseados em palavras-chave que exigem respostas funcionais de suporte, preços ou agendamentos."
+                )
+                
+                SafetyInstructionRow(
+                    index = "04",
+                    title = "Proibido Disparos em Massa",
+                    description = "Utilize o aplicativo estritamente como receptor-respondedor de mensagens recebidas organicamente. O envio em massa para listas frias viola severamente os termos da Meta e causa bloqueios em poucas horas."
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun SafetyInstructionRow(index: String, title: String, description: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        Text(
+            text = index,
+            style = MaterialTheme.typography.labelLarge,
+            color = CyberCyan,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(top = 2.dp)
+        )
+        Column {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                lineHeight = 16.sp
+            )
+        }
+    }
 }

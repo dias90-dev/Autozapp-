@@ -3,6 +3,7 @@ package com.example
 import android.content.Context
 import android.os.Bundle
 import android.provider.Settings
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -44,30 +45,15 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    val context = LocalContext.current
-                    var isAccessEnabled by remember { mutableStateOf(isNotificationServiceEnabled(context)) }
-
-                    Column {
-                        if (!isAccessEnabled) {
-                            PermissionBanner(onGrantClick = {
-                                openNotificationSettings(context)
-                            })
-                        }
-                        HomeScreen(viewModel = viewModel)
-                    }
-                    
-                    LaunchedEffect(Unit) {
-                        while(true) {
-                            kotlinx.coroutines.delay(2000)
-                            isAccessEnabled = isNotificationServiceEnabled(context)
-                        }
-                    }
+                    HomeScreen(viewModel = viewModel)
                 }
             }
         }
     }
+}
 
-    private fun isNotificationServiceEnabled(context: Context): Boolean {
+fun isNotificationServiceEnabled(context: Context): Boolean {
+    return try {
         val packageName = context.packageName
         val flat = Settings.Secure.getString(context.contentResolver, "enabled_notification_listeners")
         if (flat != null) {
@@ -79,7 +65,10 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
-        return false
+        false
+    } catch (e: Exception) {
+        Log.e("MainActivity", "Failed to check notification service status", e)
+        false
     }
 }
 
@@ -95,8 +84,7 @@ fun PermissionBanner(onGrantClick: () -> Unit) {
     ) {
         Row(
             modifier = Modifier
-                .padding(16.dp)
-                .statusBarsPadding(),
+                .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
